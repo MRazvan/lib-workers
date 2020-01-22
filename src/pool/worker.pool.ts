@@ -28,6 +28,16 @@ export function getThreadId(): number {
   return MY_SPECIAL_WORKER_KEY.threadId;
 }
 
+function getErrorMessage(err: any): ErrorMsg {
+  if (isNil(err)){
+    return new ErrorMsg('Unknown error');
+  }
+  if (err instanceof Error){
+    return new ErrorMsg(err.message, err.name, err.stack);
+  }
+  return new ErrorMsg(err.toString());
+}
+
 export class WorkerPool {
   private static readonly _messages: Defered[] = [];
   private static readonly _workers: WorkerData[] = [];
@@ -116,14 +126,14 @@ export class WorkerPool {
       // First we need to check the worker classes
       const cd = GetWorkerContexts().find((cd: ClassData) => cd.name === des.target);
       if (isNil(cd)) {
-        WorkerPool.sendToParent(new Error(`Cannot find execution target ${des.target}`));
+        WorkerPool.sendToParent(getErrorMessage(`Cannot find execution target ${des.target}`));
         return;
       }
       try {
         const instance = Reflect.construct(cd.target, []);
         const method: Function = instance[des.method];
         if (isNil(method)) {
-          WorkerPool.sendToParent(new Error(`Cannot find method on target ${des.target}.${des.method}`));
+          WorkerPool.sendToParent(getErrorMessage(`Cannot find method on target ${des.target}.${des.method}`));
           return;
         }
         const result = method.apply(instance, des.args || []);
@@ -133,13 +143,13 @@ export class WorkerPool {
               WorkerPool.sendToParent(new DoneMsg(val));
             })
             .catch(err => {
-              WorkerPool.sendToParent(new Error(err.message));
+              WorkerPool.sendToParent(getErrorMessage(err));
             });
         } else {
-          WorkerPool.sendToParent(new DoneMsg(result));
+          WorkerPool.sendToParent(getErrorMessage(result));
         }
       } catch (err) {
-        WorkerPool.sendToParent(new Error(err.message));
+        WorkerPool.sendToParent(getErrorMessage(err));
         return;
       }
     }
@@ -157,7 +167,10 @@ export class WorkerPool {
     if (des instanceof DoneMsg) {
       wkd.deferred.resolve(des);
     } else if (des instanceof ErrorMsg) {
-      wkd.deferred.reject(new Error(des.msg));
+      const err = new Error(des.msg);
+      err.name = des.name || err.name;
+      err.stack = des.stack || err.stack;
+      wkd.deferred.reject(err);
     } else {
       wkd.deferred.resolve();
     }
