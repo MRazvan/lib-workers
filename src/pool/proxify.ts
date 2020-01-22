@@ -1,7 +1,6 @@
 import { Dynamic, DynamicClass, DynamicMethod, MethodData, ReflectHelper } from 'lib-reflect';
 import { isNil } from 'lodash';
 import { WorkerScheduledFileNameTagKey } from './attributes/worker.context';
-import { DoneMsg } from './messages/done';
 import { ExecuteMsg } from './messages/execute';
 import * as WP from './worker.pool';
 import * as util from 'util';
@@ -60,7 +59,7 @@ export function Proxify<T>(target: Function): new () => T {
         // Set the body of the proxied method
         dm.addBody(function(...args: any[]): Promise<any> {
           // Finally send the work to the worker threads and return the result, or just throw if anything happens
-          return WP.WorkerPool.sendToWorker(new ExecuteMsg(cd.name, md.name, args)).then((val: DoneMsg) => val.payload);
+          return WP.WorkerPool.sendToWorker(new ExecuteMsg(cd.name, md.name, args));
         });
       });
     });

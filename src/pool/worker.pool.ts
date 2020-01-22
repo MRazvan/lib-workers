@@ -1,5 +1,5 @@
 import { ClassData } from 'lib-reflect';
-import { isNil, remove } from 'lodash';
+import { isNil, remove, isFunction } from 'lodash';
 import * as os from 'os';
 import * as MY_SPECIAL_WORKER_KEY from 'worker_threads';
 import { GetWorkerContexts, WorkerScheduledFileNameTagKey } from './attributes/worker.context';
@@ -8,6 +8,9 @@ import { ErrorMsg } from './messages/error';
 import { ExecuteMsg } from './messages/execute';
 import { LoadScript } from './messages/load.script';
 import { Serializer } from './serialization';
+import * as util from 'util';
+
+const log = util.debuglog('WorkerPool');
 
 class Defered {
   constructor(public resolve: any, public reject: any, public message: any, public pinnedWorker: WorkerData) {}
@@ -65,10 +68,14 @@ export class WorkerPool {
     WorkerPool._initialized = true;
 
     if (!WorkerPool.isWorker()) {
-      workers = isNil(workers) ? os.cpus().length - 1 : workers;
+      // We are in main
+
+      const availableCpus = os.cpus().length - 1;
+      workers = isNil(workers) ? (availableCpus > 0 ? availableCpus : 1) : workers;
       // We can't have 0 workers or can we?
       if (workers <= 0) {
         WorkerPool._isEnabled = false;
+        log('WorkerPool not started. The number of workers is invalid');
         return;
       }
 
@@ -119,13 +126,15 @@ export class WorkerPool {
     // ///////////////////
     // We need to handle message from the main thread. Do what?
     const des = Serializer.deserialize(val);
+    // TODO: Improve the handling of messages, move them into a separate system 
+    //         where we can extend / improve the functionality easily    
     if (des instanceof LoadScript) {
       require(des.fileName);
       WorkerPool.sendToParent(new DoneMsg());
     } else if (des instanceof ExecuteMsg) {
       // TODO: Improve this to pin classes and allow singletons
       // TODO: Add support for constructor parameters
-      
+
       // First we need to check the worker classes
       const cd = GetWorkerContexts().find((cd: ClassData) => cd.name === des.target);
       if (isNil(cd)) {
@@ -135,11 +144,15 @@ export class WorkerPool {
       try {
         const instance = Reflect.construct(cd.target, []);
         const method: Function = instance[des.method];
-        if (isNil(method)) {
+        // Sanity check
+        if (!isFunction(method)) {
           WorkerPool.sendToParent(getErrorMessage(`Cannot find method on target ${des.target}.${des.method}`));
           return;
         }
+        // Execute the method
         const result = method.apply(instance, des.args || []);
+        // We should always return a promise from a method that is supposed to run in a worker
+        //  we can have situations where that is not the case
         if (result instanceof Promise) {
           result
             .then(val => {
@@ -149,11 +162,11 @@ export class WorkerPool {
               WorkerPool.sendToParent(getErrorMessage(err));
             });
         } else {
-          WorkerPool.sendToParent(getErrorMessage(result));
+          // Not a promise
+          WorkerPool.sendToParent(result);
         }
       } catch (err) {
         WorkerPool.sendToParent(getErrorMessage(err));
-        return;
       }
     }
   }
@@ -166,18 +179,26 @@ export class WorkerPool {
     if (!wkd.deferred) {
       return;
     }
+
     const des = Serializer.deserialize(msg);
+    // If it's the done message just resolve for that
     if (des instanceof DoneMsg) {
-      wkd.deferred.resolve(des);
+      // Resolve the promise with our result
+      wkd.deferred.resolve(des.payload);
     } else if (des instanceof ErrorMsg) {
+      // Error message sent from worker, try and replicate the error in main
       const err = new Error(des.msg);
       err.name = des.name || err.name;
       err.stack = des.stack || err.stack;
+      // Reject with our new error? Does this work? Hmmm
       wkd.deferred.reject(err);
     } else {
+      // For now nothing else, just resolve the promise
       wkd.deferred.resolve();
     }
     wkd.deferred = null;
+
+    // Notify the worker pool that it can schedule more work
     WorkerPool._scheduleWork();
   }
 
@@ -214,18 +235,6 @@ export class WorkerPool {
       worker.deferred = deferred;
       worker.handler.postMessage(deferred.message);
     }
-  }
-
-  private static _sendDirectly(
-    worker: WorkerData,
-    msg: any,
-    transferList?: Array<ArrayBuffer | MY_SPECIAL_WORKER_KEY.MessagePort>
-  ): Promise<any> {
-    const promise = new Promise((resolve, reject) => {
-      worker.deferred = new Defered(resolve, reject, Serializer.serialize(msg), worker);
-    });
-    worker.handler.postMessage(worker.deferred.message, transferList);
-    return promise;
   }
 }
 
