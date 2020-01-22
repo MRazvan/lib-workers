@@ -1,6 +1,6 @@
-import { Message } from '../attributes/message';
+import { Serialize } from '../attributes/serializer';
 
-@Message()
+@Serialize()
 export class LoadScript {
   constructor(public fileName: string) {}
 }

@@ -1,30 +1,46 @@
-import { LongRunning } from './long.running';
 import * as WP from './src/pool';
+import { MutexTest } from './mutex.t';
 
 // By default the WorkerPool will create (os.cpus - 1) workers, it can be overridden with the number of workers
 // WP.WorkerPool.initialize(3);
-WP.WorkerPool.initialize();
+WP.WorkerPool.initialize(10);
 
-// Create our instance in the main thread this will be a proxy, 
-// however if the WorkerPool is not running it will actually be an instance of our class
-const longRunningProcess = WP.Create<LongRunning>(LongRunning);
-
-// instanceof should still work on the proxy
-if (longRunningProcess instanceof LongRunning) {
-  console.log('******************* EVRIKA instanceof works ******************* ');
+const longRunningProcess = WP.Create<MutexTest>(MutexTest);
+async function bootstrap(): Promise<void> {
+  // Create our instance in the main thread this will be a proxy, 
+  // however if the WorkerPool is not running it will actually be an instance of our class
+  const b = await WP.Mutex.get('myBarrier');
+  for (let idx = 0; idx < WP.WorkerPool.workersCount(); ++idx) {
+    // We still have intellisense
+    // Because we are in main and this class is marked for worker process the following call 
+    //  will run on workers and return a promise that will resolve when it's done
+    longRunningProcess.testMutex(b); 
+  }
+  // setTimeout(() => {
+  //   console.log('WAKEUP THREADS');
+  //   b.notify();
+  // }, 5000);
 }
 
-// Queue up some work on the worker threads, twice the amount of workers available
-for (let idx = 0; idx < 2 * WP.WorkerPool.workersCount(); ++idx) {
-  // We still have intellisense
-  // Because we are in main and this class is marked for worker process the following call 
-  //  will run on workers and return a promise that will resolve when it's done
-  longRunningProcess.calculatePrimes(20000000); 
-}
+bootstrap();
 
-// Start something in main to see that main thread is still alive and kicking
-let cnt = 0;
-setInterval(() => console.log('In Main Thread... ' + cnt++), 1000);
+// const longRunningProcess = WP.Create<LongRunning>(LongRunning);
+// // instanceof should still work on the proxy
+// if (longRunningProcess instanceof LongRunning) {
+//   console.log('******************* EVRIKA instanceof works ******************* ');
+// }
+
+// // Queue up some work on the worker threads, twice the amount of workers available
+// for (let idx = 0; idx < 2 * WP.WorkerPool.workersCount(); ++idx) {
+//   // We still have intellisense
+//   // Because we are in main and this class is marked for worker process the following call 
+//   //  will run on workers and return a promise that will resolve when it's done
+//   longRunningProcess.calculatePrimes(20000000); 
+// }
+
+// // Start something in main to see that main thread is still alive and kicking
+// let cnt = 0;
+// setInterval(() => console.log('In Main Thread... ' + cnt++), 1000);
 
 /*
 

@@ -10,6 +10,8 @@ import { LoadScript } from './messages/load.script';
 import { Serializer } from './serialization';
 import * as util from 'util';
 
+// Force load our messages
+
 const log = util.debuglog('WorkerPool');
 
 class Defered {
@@ -42,6 +44,7 @@ function getErrorMessage(err: any): ErrorMsg {
 }
 
 export class WorkerPool {
+  public static _sharedArray : Int32Array = null;
   private static readonly _messages: Defered[] = [];
   private static readonly _workers: WorkerData[] = [];
   private static _initialized = false;
@@ -79,10 +82,13 @@ export class WorkerPool {
         return;
       }
 
-      for (let idx = 0; idx < workers; ++idx) {
-        WorkerPool._workers.push(new WorkerData(idx, new MY_SPECIAL_WORKER_KEY.Worker(__filename)));
-      }
+      WorkerPool._sharedArray = new Int32Array(new SharedArrayBuffer(4 /* bytes per int 32 */  * /* 10k of ints */10 * 1024));
 
+      for (let idx = 0; idx < workers; ++idx) {
+        WorkerPool._workers.push(new WorkerData(idx, new MY_SPECIAL_WORKER_KEY.Worker(__filename, {
+          workerData : WorkerPool._sharedArray
+        })));
+      }
       // Attach handlers
       for (const worker of WorkerPool._workers) {
         worker.handler.on('online', () => {
@@ -96,12 +102,13 @@ export class WorkerPool {
           WorkerPool._scheduleWork();
         });
         worker.handler.on('error', err => {
-          WorkerPool._onWorkerMessage(worker, new ErrorMsg(err.message));
+          WorkerPool._onWorkerMessage(worker, Serializer.serialize(new ErrorMsg(err.message)));
         });
         worker.handler.on('message', value => WorkerPool._onWorkerMessage(worker, value));
       }
     } else {
-      // Set the shared array
+      WorkerPool._sharedArray = MY_SPECIAL_WORKER_KEY.workerData;
+
       MY_SPECIAL_WORKER_KEY.parentPort.on('message', val => WorkerPool._onParentMessage(val));
     }
   }
@@ -129,8 +136,12 @@ export class WorkerPool {
     // TODO: Improve the handling of messages, move them into a separate system 
     //         where we can extend / improve the functionality easily    
     if (des instanceof LoadScript) {
-      require(des.fileName);
-      WorkerPool.sendToParent(new DoneMsg());
+      try{
+        require(des.fileName);
+        WorkerPool.sendToParent(new DoneMsg());  
+      }catch(err){
+        WorkerPool.sendToParent(getErrorMessage(err));
+      }
     } else if (des instanceof ExecuteMsg) {
       // TODO: Improve this to pin classes and allow singletons
       // TODO: Add support for constructor parameters
@@ -168,6 +179,8 @@ export class WorkerPool {
       } catch (err) {
         WorkerPool.sendToParent(getErrorMessage(err));
       }
+    }else{
+      WorkerPool.sendToParent(getErrorMessage('UnknownMessage'));
     }
   }
 

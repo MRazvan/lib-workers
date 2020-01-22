@@ -10,7 +10,6 @@ export class LongRunning {
     const primes = calculatePrimesToLimit(maxPrime);
     // Log that we are done
     console.log(`Worker : ${WP.getThreadId()} - Finished. Found: ${primes.length}`);
-    // And return a result
     return Promise.resolve(WP.getThreadId());
   }
 }
