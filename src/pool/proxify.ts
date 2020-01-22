@@ -1,4 +1,3 @@
-import { injectable, METADATA_KEY } from 'inversify';
 import { Dynamic, DynamicClass, DynamicMethod, MethodData, ReflectHelper } from 'lib-reflect';
 import { isNil } from 'lodash';
 import { WorkerScheduledFileNameTagKey } from './attributes/worker.context';
@@ -45,10 +44,6 @@ export function Proxify<T>(target: Function): new () => T {
 
   // Create the proxy class
   const dynamicClass = Dynamic.createClass('Proxy' + cd.name, null, (dc: DynamicClass) => {
-    // If the target class was marked injectable for inversify, mark the proxy also
-    if (Reflect.hasOwnMetadata(METADATA_KEY.PARAM_TYPES, cd.target)) {
-      dc.decorate(injectable());
-    }
     // Now create the proxy for the methods
     cd.methods.forEach((md: MethodData) => {
       // Skip over the constructor
