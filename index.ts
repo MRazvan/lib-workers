@@ -3,10 +3,9 @@ import { MutexTest } from './mutex.t';
 
 // By default the WorkerPool will create (os.cpus - 1) workers, it can be overridden with the number of workers
 // WP.WorkerPool.initialize(3);
-WP.WorkerPool.initialize(10);
-
-const longRunningProcess = WP.Create<MutexTest>(MutexTest);
+WP.WorkerPool.initialize(); 
 async function bootstrap(): Promise<void> {
+  const longRunningProcess = WP.Create<MutexTest>(MutexTest);
   // Create our instance in the main thread this will be a proxy, 
   // however if the WorkerPool is not running it will actually be an instance of our class
   const b = await WP.Mutex.get('myBarrier');
@@ -14,12 +13,8 @@ async function bootstrap(): Promise<void> {
     // We still have intellisense
     // Because we are in main and this class is marked for worker process the following call 
     //  will run on workers and return a promise that will resolve when it's done
-    longRunningProcess.testMutex(b); 
+    longRunningProcess.test(b); 
   }
-  // setTimeout(() => {
-  //   console.log('WAKEUP THREADS');
-  //   b.notify();
-  // }, 5000);
 }
 
 bootstrap();
