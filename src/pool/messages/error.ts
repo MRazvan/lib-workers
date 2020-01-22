@@ -1,6 +1,6 @@
-import { Message } from '../attributes/message';
+import { Serialize } from '../attributes/serializer';
 
-@Message()
+@Serialize()
 export class ErrorMsg {
-  constructor(public msg: string) {}
+  constructor(public msg: string, public name?: string, public stack?: string) {}
 }
