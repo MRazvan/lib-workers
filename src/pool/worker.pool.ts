@@ -123,6 +123,9 @@ export class WorkerPool {
       require(des.fileName);
       WorkerPool.sendToParent(new DoneMsg());
     } else if (des instanceof ExecuteMsg) {
+      // TODO: Improve this to pin classes and allow singletons
+      // TODO: Add support for constructor parameters
+      
       // First we need to check the worker classes
       const cd = GetWorkerContexts().find((cd: ClassData) => cd.name === des.target);
       if (isNil(cd)) {

@@ -4,6 +4,10 @@ import { WorkerScheduledFileNameTagKey } from './attributes/worker.context';
 import { DoneMsg } from './messages/done';
 import { ExecuteMsg } from './messages/execute';
 import * as WP from './worker.pool';
+import * as util from 'util';
+
+const ProxyCacheKey = 'ProxyCacheKey';
+const log = util.debuglog('Proxify');
 
 export function Proxify<T>(target: Function): new () => T {
   // Some sanity checks
@@ -13,7 +17,7 @@ export function Proxify<T>(target: Function): new () => T {
 
   // If we are not in a worker environment or the workers are not enabled
   //    return the actual target back
-  if (WP.WorkerPool.isWorker() || !WP.WorkerPool.isEnabled()) {
+  if (WP.WorkerPool.isWorker() || !WP.WorkerPool.isEnabled() || WP.WorkerPool.workersCount() === 0) {
     return target as new () => T;
   }
 
@@ -35,8 +39,8 @@ export function Proxify<T>(target: Function): new () => T {
   }
 
   // Did we generate a proxy before? If yes return that
-  if (!isNil(cd.tags['ProxyClass'])) {
-    return cd.tags['ProxyClass'].target as new () => T;
+  if (!isNil(cd.tags[ProxyCacheKey])) {
+    return cd.tags[ProxyCacheKey].target as new () => T;
   }
 
   // Make sure we build the metadata so we have all methods from that class
@@ -73,10 +77,11 @@ export function Proxify<T>(target: Function): new () => T {
     });
   } catch (err) {
     // We can't do runtime type checking with instanceof
+    log(`Cannot override instanceof for ${cd.name}, proxy checking will not work.`);
   }
 
   // Cache the proxy, next time just return the generated one
-  cd.tags['ProxyClass'] = dynamicClass;
+  cd.tags[ProxyCacheKey] = dynamicClass;
 
   // Return the new class 'Function' to create an instance
   return dynamicClass.target as new () => T;
