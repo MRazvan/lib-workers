@@ -1,16 +1,16 @@
-import { isString, isNil } from 'lodash';
-import { isBoolean, isNumber, isArray } from 'util';
+import { isNil, isString } from 'lodash';
+import { isArray, isBoolean, isNumber } from 'util';
 import { GetWorkerMessages, ISerializer, SerializationHandlerKey } from './attributes/serializer';
 import { SerializationError } from './errors/serialization.error';
 
 export class Serializer {
   public static serialize(obj: any): any {
     if (isNil(obj) || isString(obj) || isNumber(obj) || isBoolean(obj)) return obj;
-    if (isArray(obj)){
+    if (isArray(obj)) {
       // TODO: Circular references, make this smarter
-      return obj.map((item) => Serializer.serialize(item));
+      return obj.map(item => Serializer.serialize(item));
     }
-    if (!obj.___WorkerMessageKey){
+    if (!obj.___WorkerMessageKey) {
       return obj;
     }
 
@@ -36,10 +36,10 @@ export class Serializer {
 
   public static deserialize(obj: any): any {
     if (isNil(obj) || isString(obj) || isNumber(obj) || isBoolean(obj)) return obj;
-    if (isArray(obj)){
+    if (isArray(obj)) {
       // TODO: Circular references, make this smarter
-      return obj.map((item) => Serializer.deserialize(item));
-    }    
+      return obj.map(item => Serializer.deserialize(item));
+    }
     if (!obj.___WorkerMessageKey) {
       return obj;
     }
@@ -53,7 +53,7 @@ export class Serializer {
       const handler = cd.tags[SerializationHandlerKey] as ISerializer;
       return handler.deserialize(obj);
     }
-    // Fallback construct the object      
+    // Fallback construct the object
     const instance = Reflect.construct(cd.target, []);
     Object.assign(instance, obj);
     return instance;

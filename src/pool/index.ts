@@ -12,4 +12,3 @@ export * from './worker.pool';
 export * from './synchronization/barrier';
 export * from './synchronization/mutex';
 export * from './synchronization/wait';
-

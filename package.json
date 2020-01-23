@@ -24,8 +24,8 @@
     "coverage:test": "node ./node_modules/nyc/bin/nyc.js --reporter=html --reporter=text --reporter=lcov npm run test",
     "tc:test": "node ./node_modules/mocha/bin/mocha --reporter mocha-teamcity-reporter -r ./node_modules/ts-node/register/index.js ./tests/**/*.spec.ts --exit",
     "nyc:test": "node ./node_modules/nyc/bin/nyc.js --reporter=html --reporter=teamcity npm run tc:test",
-    "lint": "node ./node_modules/eslint/bin/eslint.js ./src/**/*.ts ./index.ts",
-    "lint:fix": "node ./node_modules/eslint/bin/eslint.js --fix ./src/**/*.ts ./index.ts",
+    "lint": "node ./node_modules/eslint/bin/eslint.js ./src/**/*.ts ./*.ts",
+    "lint:fix": "node ./node_modules/eslint/bin/eslint.js --fix ./src/**/*.ts ./*.ts",
     "statistics": "node ./node_modules/sloc/bin/sloc --defails --exclude spec.ts ./src",
     "pre:push": "npm run lint && npm run test && npm run build"
   },

@@ -1,6 +1,7 @@
 import { ClassData } from 'lib-reflect';
-import { isNil, remove, isFunction } from 'lodash';
+import { isFunction, isNil, remove } from 'lodash';
 import * as os from 'os';
+import * as util from 'util';
 import * as MY_SPECIAL_WORKER_KEY from 'worker_threads';
 import { GetWorkerContexts, WorkerScheduledFileNameTagKey } from './attributes/worker.context';
 import { DoneMsg } from './messages/done';
@@ -8,19 +9,14 @@ import { ErrorMsg } from './messages/error';
 import { ExecuteMsg } from './messages/execute';
 import { LoadScript } from './messages/load.script';
 import { Serializer } from './serialization';
-import * as util from 'util';
 
 // Force load our messages
 
 const log = util.debuglog('WorkerPool');
 
-class Defered {
-  constructor(public resolve: any, public reject: any, public message: any, public pinnedWorker: WorkerData) {}
-}
-
 class WorkerData {
   public ready: boolean;
-  public deferred: Defered;
+  public deferred: Deferred;
   public threadId: number;
   constructor(public id: number, public handler: MY_SPECIAL_WORKER_KEY.Worker) {
     this.threadId = handler.threadId;
@@ -29,26 +25,34 @@ class WorkerData {
   }
 }
 
+class Deferred {
+  constructor(public resolve: any, public reject: any, public message: any, public pinnedWorker: number) {}
+}
+
 export function getThreadId(): number {
   return MY_SPECIAL_WORKER_KEY.threadId;
 }
 
 function getErrorMessage(err: any): ErrorMsg {
-  if (isNil(err)){
+  if (isNil(err)) {
     return new ErrorMsg('Unknown error');
   }
-  if (err instanceof Error){
+  if (err instanceof Error) {
     return new ErrorMsg(err.message, err.name, err.stack);
   }
   return new ErrorMsg(err.toString());
 }
 
 export class WorkerPool {
-  public static _sharedArray : Int32Array = null;
-  private static readonly _messages: Defered[] = [];
+  protected static _sharedArray: Int32Array = null;
+  private static readonly _messages: Deferred[] = [];
   private static readonly _workers: WorkerData[] = [];
   private static _initialized = false;
   private static _isEnabled = true;
+
+  protected constructor() {
+    // Don't allow creation (at least in TS)
+  }
 
   public static isWorker(): boolean {
     return !MY_SPECIAL_WORKER_KEY.isMainThread;
@@ -82,12 +86,22 @@ export class WorkerPool {
         return;
       }
 
-      WorkerPool._sharedArray = new Int32Array(new SharedArrayBuffer(4 /* bytes per int 32 */  * /* 10k of ints */10 * 1024));
+      WorkerPool._sharedArray = new Int32Array(
+        new SharedArrayBuffer(4 /* bytes per int 32 */ * /* 10k of ints */ 10 * 1024)
+      );
 
       for (let idx = 0; idx < workers; ++idx) {
-        WorkerPool._workers.push(new WorkerData(idx, new MY_SPECIAL_WORKER_KEY.Worker(__filename, {
-          workerData : WorkerPool._sharedArray
-        })));
+        WorkerPool._workers.push(
+          new WorkerData(
+            idx,
+            new MY_SPECIAL_WORKER_KEY.Worker(__filename, {
+              workerData: {
+                sharedArray: WorkerPool._sharedArray,
+                numberOfWorkers: workers
+              }
+            })
+          )
+        );
       }
       // Attach handlers
       for (const worker of WorkerPool._workers) {
@@ -96,33 +110,36 @@ export class WorkerPool {
           // We should check to see what is loaded and what not in this thread for now brute force
           const cl = GetWorkerContexts();
           for (const cw of cl) {
-            WorkerPool.sendToWorker(new LoadScript(cw.tags[WorkerScheduledFileNameTagKey]), worker);
+            WorkerPool._queueWork(new LoadScript(cw.tags[WorkerScheduledFileNameTagKey]), worker.threadId);
           }
-          // Schedule the rest of the work
+          // Schedule the work
           WorkerPool._scheduleWork();
         });
+
         worker.handler.on('error', err => {
           WorkerPool._onWorkerMessage(worker, Serializer.serialize(new ErrorMsg(err.message)));
         });
+
         worker.handler.on('message', value => WorkerPool._onWorkerMessage(worker, value));
       }
     } else {
-      WorkerPool._sharedArray = MY_SPECIAL_WORKER_KEY.workerData;
-
+      WorkerPool._sharedArray = MY_SPECIAL_WORKER_KEY.workerData.sharedArray;
       MY_SPECIAL_WORKER_KEY.parentPort.on('message', val => WorkerPool._onParentMessage(val));
     }
   }
 
   public static sendToParent(msg: any): void {
-    MY_SPECIAL_WORKER_KEY.parentPort.postMessage(Serializer.serialize(msg));
+    if (WorkerPool.isWorker()) {
+      MY_SPECIAL_WORKER_KEY.parentPort.postMessage(Serializer.serialize(msg));
+    }
   }
 
-  public static sendToWorker(msg: any, pinnedWorker?: WorkerData): Promise<any> {
+  public static sendToWorker(msg: any, pinnedWorker?: number): Promise<any> {
     // Serialize the payload
     const serialized = Serializer.serialize(msg);
     // Return a promise and notify any available worker to pickup the task
     return new Promise((resolve, reject) => {
-      WorkerPool._messages.push(new Defered(resolve, reject, serialized, pinnedWorker));
+      WorkerPool._messages.push(new Deferred(resolve, reject, serialized, pinnedWorker));
       WorkerPool._scheduleWork();
     });
   }
@@ -133,13 +150,13 @@ export class WorkerPool {
     // ///////////////////
     // We need to handle message from the main thread. Do what?
     const des = Serializer.deserialize(val);
-    // TODO: Improve the handling of messages, move them into a separate system 
-    //         where we can extend / improve the functionality easily    
+    // TODO: Improve the handling of messages, move them into a separate system
+    //         where we can extend / improve the functionality easily
     if (des instanceof LoadScript) {
-      try{
+      try {
         require(des.fileName);
-        WorkerPool.sendToParent(new DoneMsg());  
-      }catch(err){
+        WorkerPool.sendToParent(new DoneMsg());
+      } catch (err) {
         WorkerPool.sendToParent(getErrorMessage(err));
       }
     } else if (des instanceof ExecuteMsg) {
@@ -179,7 +196,7 @@ export class WorkerPool {
       } catch (err) {
         WorkerPool.sendToParent(getErrorMessage(err));
       }
-    }else{
+    } else {
       WorkerPool.sendToParent(getErrorMessage('UnknownMessage'));
     }
   }
@@ -231,7 +248,7 @@ export class WorkerPool {
     // We have all the free workers, dispatch work to those workers
     for (const worker of workers) {
       // First search for a pinned message
-      let deferred = WorkerPool._messages.find(dfd => dfd.pinnedWorker === worker);
+      let deferred = WorkerPool._messages.find(dfd => dfd.pinnedWorker === worker.threadId);
       if (isNil(deferred)) {
         // We don't have a pinned message, use standard QUEUE functionality to get a message that is not pinned to any worker
         //  This can be optimized by having different queues one for the worker and one for everyone
@@ -248,6 +265,14 @@ export class WorkerPool {
       worker.deferred = deferred;
       worker.handler.postMessage(deferred.message);
     }
+  }
+
+  private static _queueWork(msg: any, pinnedWorker?: number): Promise<any> {
+    const serialized = Serializer.serialize(msg);
+    // Return a promise and notify any available worker to pickup the task
+    return new Promise((resolve, reject) => {
+      WorkerPool._messages.push(new Deferred(resolve, reject, serialized, pinnedWorker));
+    });
   }
 }
 

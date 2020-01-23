@@ -5,7 +5,7 @@ import * as WP from './src/pool';
 // Declare our class and mark it for WorkerThread processing
 @WP.WorkerContext()
 export class MutexTest {
-  public async test(m : WP.Mutex): Promise<number> {
+  public async waitOnMutex(m: WP.Mutex): Promise<number> {
     // Some long running stuff
     console.log(`${WP.getThreadId()} - TRY AND GET THE LOCK `);
     m.lock();
