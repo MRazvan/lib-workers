@@ -1,41 +1,30 @@
+import { LongRunning } from './long.running';
 import * as WP from './src/pool';
-import { MutexTest } from './mutex.t';
 
 // By default the WorkerPool will create (os.cpus - 1) workers, it can be overridden with the number of workers
 // WP.WorkerPool.initialize(3);
-WP.WorkerPool.initialize(); 
-async function bootstrap(): Promise<void> {
-  const longRunningProcess = WP.Create<MutexTest>(MutexTest);
-  // Create our instance in the main thread this will be a proxy, 
-  // however if the WorkerPool is not running it will actually be an instance of our class
-  const b = await WP.Mutex.get('myBarrier');
-  for (let idx = 0; idx < WP.WorkerPool.workersCount(); ++idx) {
-    // We still have intellisense
-    // Because we are in main and this class is marked for worker process the following call 
-    //  will run on workers and return a promise that will resolve when it's done
-    longRunningProcess.test(b); 
-  }
+WP.WorkerPool.initialize();
+const longRunningProcess = WP.Create<LongRunning>(LongRunning);
+// instanceof should still work on the proxy
+if (longRunningProcess instanceof LongRunning) {
+  console.log('******************* EVRIKA instanceof works ******************* ');
 }
-
-bootstrap();
-
-// const longRunningProcess = WP.Create<LongRunning>(LongRunning);
-// // instanceof should still work on the proxy
-// if (longRunningProcess instanceof LongRunning) {
-//   console.log('******************* EVRIKA instanceof works ******************* ');
-// }
-
-// // Queue up some work on the worker threads, twice the amount of workers available
-// for (let idx = 0; idx < 2 * WP.WorkerPool.workersCount(); ++idx) {
-//   // We still have intellisense
-//   // Because we are in main and this class is marked for worker process the following call 
-//   //  will run on workers and return a promise that will resolve when it's done
-//   longRunningProcess.calculatePrimes(20000000); 
-// }
-
-// // Start something in main to see that main thread is still alive and kicking
-// let cnt = 0;
-// setInterval(() => console.log('In Main Thread... ' + cnt++), 1000);
+const promiseList: Promise<any>[] = [];
+console.time('Execution');
+// Queue up some work on the worker threads, twice the amount of workers available
+for (let idx = 0; idx < 2 * (WP.WorkerPool.workersCount() || 11); ++idx) {
+  // We still have intellisense
+  // Because we are in main and this class is marked for worker process the following call
+  //  will run on workers and return a promise that will resolve when it's done
+  promiseList.push(longRunningProcess.calculatePrimes(20000000));
+}
+Promise.all(promiseList).then(() => {
+  console.timeEnd('Execution');
+  console.log('********** ALL EXECUTED ***********');
+});
+// Start something in main to see that main thread is still alive and kicking
+let cnt = 0;
+setInterval(() => console.log('In Main Thread... ' + cnt++), 1000);
 
 /*
 

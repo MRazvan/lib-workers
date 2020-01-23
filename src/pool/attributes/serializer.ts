@@ -11,7 +11,6 @@ export interface ISerializer {
 export const SerializationHandlerKey = 'SerializationHandlerKey';
 const MessageClassBagKey = 'MessageClassBagKey';
 
-
 export const Serialize = (serializer?: ISerializer): ClassDecorator =>
   ClassDecoratorFactory((cd: ClassData) => {
     cd.target.prototype.___WorkerMessageKey = cd.name;

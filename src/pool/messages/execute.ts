@@ -2,14 +2,14 @@ import { Serialize } from '../attributes/serializer';
 import { Serializer } from '../serialization';
 
 @Serialize({
-  serialize : (data: ExecuteMsg): any => {
+  serialize: (data: ExecuteMsg): any => {
     return {
       target: data.target,
       method: data.method,
       args: Serializer.serialize(data.args)
-    }
+    };
   },
-  deserialize: (data: any) : ExecuteMsg => {
+  deserialize: (data: any): ExecuteMsg => {
     return new ExecuteMsg(data.target, data.method, Serializer.deserialize(data.args));
   }
 })
