@@ -4,5 +4,5 @@ export class ThreadData {
 export interface IThreading {
   workers: ThreadData[];
   init(workers: number, workerData: any): void;
-  send(msg: any, to?: number): Promise<any>;
+  sendAsync(msg: any, to?: number): Promise<any>;
 }

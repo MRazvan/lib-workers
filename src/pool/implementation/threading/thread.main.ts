@@ -5,6 +5,7 @@ import { Message } from '../../handlers/handler';
 import { getLog, Logger } from '../../logging';
 import { CommunicationChannel } from '../communication';
 import { Deferred } from '../deferred';
+import { ExitMessage } from '../messages/exit';
 import { OnlineMessage } from '../messages/online';
 import { GetPacketDescription } from '../messages/utils';
 import { Packet } from '../packet';
@@ -20,7 +21,7 @@ class WorkerData extends ThreadData {
   public group: ThreadGroup;
   constructor(public worker: MY_SPECIAL_WORKER_KEY.Worker) {
     super();
-    this.comChannel = new CommunicationChannel(worker, `${worker.threadId}`);
+    this.comChannel = new CommunicationChannel(worker, worker.threadId);
     this.threadId = worker.threadId;
   }
 }
@@ -66,20 +67,20 @@ export class ThreadingMain implements IThreading {
     }
   }
 
-  public send(msg: Packet, to: number): Promise<any> {
+  public sendAsync(msg: Packet, to: number): Promise<any> {
     const promise = new Promise((resolve, reject) => {
       const deferred = new Deferred(resolve, reject, msg);
 
       // Send to any thread that can take the message?
       if (!isNumber(to) || to === THREAD_ANY) {
-        this._log('Queue message for any');
+        this._log(`Queue message for any, ${GetPacketDescription(deferred.packet)}`);
         this._deferredAllQueue.push(deferred);
         return;
       }
 
       // Send to all
       if (to === THREAD_ALL) {
-        this._log('Queue message for all');
+        this._log(`Queue message for all, ${GetPacketDescription(deferred.packet)}`);
         this._workers.forEach((worker: WorkerData) => {
           this._deferredPinnedQueue.get(worker.threadId).push(deferred);
         });
@@ -88,10 +89,10 @@ export class ThreadingMain implements IThreading {
 
       // Specific target
       if (!this._isValidThreadId(to)) {
-        reject(new Error(`Invalid thread id for pinned message: ${to}`));
+        reject(new Error(`Invalid thread id for pinned message: W-${to}. ${GetPacketDescription(deferred.packet)}`));
         return;
       }
-      this._log(`Queue message for ${to}`);
+      this._log(`Queue message for W-${to}. ${GetPacketDescription(deferred.packet)}`);
       this._deferredPinnedQueue.get(to).push(deferred);
     });
     this._scheduleWork();
@@ -101,6 +102,10 @@ export class ThreadingMain implements IThreading {
   private _listen(worker: WorkerData, msg: Packet): void {
     if (msg instanceof OnlineMessage) {
       worker.ready = true;
+    } else if (msg instanceof ExitMessage) {
+      this._log(`Got ExitMessage from worker W-${worker.threadId}. Removing from available workers.`);
+      this._removeWorker(worker);
+      // Remove this worker from the list of available workers
     }
 
     const _work = this._deferredInWork.get(worker.threadId);
@@ -154,5 +159,21 @@ export class ThreadingMain implements IThreading {
 
   private _isValidThreadId(id: number): boolean {
     return this._workers.some((workerData: WorkerData) => workerData.threadId === id);
+  }
+
+  private _removeWorker(worker: WorkerData): void {
+    // Find the worker from the list and cleanup the defered list
+    remove(this._workers, worker);
+
+    // We can't do anything with the pinned messages, we need to just reject them
+    //  there is no way to recover from a closed workthread
+    const pinnedQueue = this._deferredPinnedQueue.get(worker.threadId);
+    this._deferredPinnedQueue.delete(worker.threadId);
+    pinnedQueue.forEach((deferred: Deferred) => deferred.reject('ClosedWorker'));
+
+    // Same thing for the in work queue
+    const inWorkItems = this._deferredInWork.get(worker.threadId);
+    this._deferredInWork.delete(worker.threadId);
+    inWorkItems.forEach((deferred: Deferred) => deferred.reject('ClosedWorker'));
   }
 }

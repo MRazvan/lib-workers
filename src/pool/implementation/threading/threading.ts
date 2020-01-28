@@ -10,8 +10,8 @@ import { OnlineMessage } from '../messages/online';
 import { Packet, VOID_PACKET_ID } from '../packet';
 import { THREAD_ANY } from './constants';
 import { IThreading, ThreadData } from './i.implementation';
-import { ThreadingMain } from './main';
-import { ThreadingWorker } from './worker';
+import { ThreadingMain } from './thread.main';
+import { ThreadingWorker } from './thread.worker';
 
 export enum ThreadingEnvType {
   MAIN,
@@ -19,7 +19,7 @@ export enum ThreadingEnvType {
 }
 
 export abstract class Threading {
-  protected static _sharedBuffer: Uint32Array = null;
+  protected static _packetIdSharedBuffer: Uint32Array = null;
 
   protected static _messageInterceptors: IMessageHandler[] = [];
   protected static _threadInitializers: IInitializer[] = [];
@@ -53,10 +53,10 @@ export abstract class Threading {
   }
 
   public static getNextPacketId(): number {
-    const msgId = Atomics.add(Threading._sharedBuffer, 0, 1);
+    const msgId = Atomics.add(Threading._packetIdSharedBuffer, 0, 1);
     if (msgId === VOID_PACKET_ID) {
       // We wrapped around a UINT32 we have been busy
-      return Atomics.add(Threading._sharedBuffer, 0, 1);
+      return Atomics.add(Threading._packetIdSharedBuffer, 0, 1);
     }
     return msgId;
   }
@@ -80,12 +80,12 @@ export abstract class Threading {
       Threading._log(`Initializing main thread.`);
 
       // Just enough for message id
-      Threading._sharedBuffer = new Uint32Array(new SharedArrayBuffer(4));
-      Threading._sharedBuffer[0] = 1;
+      Threading._packetIdSharedBuffer = new Uint32Array(new SharedArrayBuffer(4));
+      Threading._packetIdSharedBuffer[0] = 1;
 
       Threading._context = {
         threading: {
-          shared: Threading._sharedBuffer,
+          shared: Threading._packetIdSharedBuffer,
           workerMain: __filename,
           requireFiles: Threading._getThreadLoadFiles()
         }
@@ -103,7 +103,7 @@ export abstract class Threading {
 
       // Set the context and initialize the rest of the messages
       Threading._context = MY_SPECIAL_WORKER_KEY.workerData;
-      Threading._sharedBuffer = Threading._context.threading.shared;
+      Threading._packetIdSharedBuffer = Threading._context.threading.shared;
       Threading._implementation.init(workers, Threading._context.threading);
       Threading._threadInitializers.forEach((handler: IInitializer) => handler.initialize(Threading._context));
       // Notify the parent that we finished loading
@@ -117,7 +117,7 @@ export abstract class Threading {
     if (!(msg instanceof Packet)) {
       throw new Error('Cannot send anything else, except Packet(s).');
     }
-    return Threading._implementation.send(msg, to);
+    return Threading._implementation.sendAsync(msg, to);
   }
 
   public static registerHandler(handler: IMessageHandler): void {

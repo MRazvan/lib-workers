@@ -25,11 +25,11 @@ export class ThreadingWorker implements IThreading {
     // Load all scripts that the parent want's us to load
     this._loadScripts(workerData);
     // Setup the channel for comunication
-    this._comChannel = new CommunicationChannel(MY_SPECIAL_WORKER_KEY.parentPort, `M`);
+    this._comChannel = new CommunicationChannel(MY_SPECIAL_WORKER_KEY.parentPort, 0);
     this._comChannel.listen(this._listen);
   }
 
-  public send(msg: Packet, to: number): Promise<any> {
+  public sendAsync(msg: Packet, to: number): Promise<any> {
     // this._log(`Send message ${msg.id}`);
     // We don't care about 'TO' in the worker, the only place where the message can go
     //  is to the parent
@@ -58,7 +58,7 @@ export class ThreadingWorker implements IThreading {
     }
     const scripts: string[] = workerData.requireFiles || [];
     this._log(`Load scripts : [${scripts.join(', ')}]`);
-    // Load the scripts
-    scripts.forEach((file: string) => require(file));
+    // Load the scripts, do not try to handle this
+    scripts.forEach(require);
   }
 }
