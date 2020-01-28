@@ -3,7 +3,7 @@ import { isFunction } from 'lodash';
 import * as MY_SPECIAL_WORKER_KEY from 'worker_threads';
 import { getLog, Logger } from '../logging';
 import { Serializer } from '../serialization';
-import { ErrorMessage } from './messages/error';
+import { ErrorMessage, getErrorMessage } from './messages/error';
 import { ExitMessage } from './messages/exit';
 import { ReadyMessage } from './messages/ready';
 import { GetPacketDescription } from './messages/utils';
@@ -17,23 +17,24 @@ export type PacketHandler = (source: CommunicationChannel, msg: Packet) => void;
 
 export class CommunicationChannel {
   private readonly _handlers: PacketHandler[] = [];
-  private readonly _log: Logger;
-  constructor(private readonly _handler: NativeChannel, id = `${MY_SPECIAL_WORKER_KEY.threadId}`) {
-    this._log = getLog(`[ComChannel-${id}]`);
-    this._handler.on('error', error => {
+  private readonly _log: Logger = getLog('[ComChannel]');
+  private _closedChannel = false;
+  constructor(private readonly _nativeChannel: NativeChannel, private readonly _id = MY_SPECIAL_WORKER_KEY.threadId) {
+    this._nativeChannel.on('error', error => {
       this._invoke(new ErrorMessage(error));
     });
 
-    this._handler.on('exit', () => {
+    this._nativeChannel.on('exit', () => {
       this._invoke(new ExitMessage());
-      this._handler.removeAllListeners();
+      this._nativeChannel.removeAllListeners();
+      this._closedChannel = true;
     });
 
-    this._handler.on('online', () => {
+    this._nativeChannel.on('online', () => {
       this._invoke(new ReadyMessage());
     });
 
-    this._handler.on('message', (msg: any) => {
+    this._nativeChannel.on('message', (msg: any) => {
       this._invoke(msg);
     });
   }
@@ -50,14 +51,14 @@ export class CommunicationChannel {
       // Try and deserialize maybe we manage to do that
       msg = Serializer.deserialize(msg);
       if (!(msg instanceof Packet)) {
-        this._log(`Got Unknown Message ${JSON.stringify(msg)}`);
+        this._log(`Got Unknown Message ${JSON.stringify(msg)}`, this._id);
         // There is nothing we can do about this packet. We don't know what it is about
         //    this should be an error, since we most likely have a promise pending somewhere
         //    that will never get resolved
         this.send(new ErrorMessage('Message received is not an instance of a Packet.'));
       }
     }
-    this._log(`Got Message ${GetPacketDescription(msg)}`);
+    this._log(`Got Message ${GetPacketDescription(msg)}`, this._id);
 
     for (const handler of this._handlers) {
       try {
@@ -78,13 +79,16 @@ export class CommunicationChannel {
         // TODO: Keep in mind this code is running in main and in workers
         // If we are a worker it is safe to throw (the other side of the channel will catch the error)
         // If we are the main thread this should close everything down.
-        this.send(new ErrorMessage(err, msg.id));
+        this.send(getErrorMessage(err, msg.id));
       }
     }
   }
 
   public send(msg: Packet): void {
-    this._log(`Send Message ${GetPacketDescription(msg)}`);
-    this._handler.postMessage(Serializer.serialize(msg));
+    if (this._closedChannel) {
+      throw new Error('Channel closed.');
+    }
+    this._log(`Send Message ${GetPacketDescription(msg)}`, this._id);
+    this._nativeChannel.postMessage(Serializer.serialize(msg));
   }
 }
