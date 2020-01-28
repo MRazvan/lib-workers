@@ -5,7 +5,7 @@ import { Serialize } from '../attributes/serializer';
 import { GetThreadLoadClasses, ThreadLoad } from '../attributes/thread.load';
 import { getErrorMessage } from '../implementation/messages/error';
 import { Packet, VOID_PACKET_ID } from '../implementation/packet';
-import { Threading, ThreadingEnvType } from '../implementation/threading/threading';
+import { Threading } from '../implementation/threading/threading';
 import { Serializer } from '../serialization';
 import { IMessageHandler, Message } from './handler';
 
@@ -37,17 +37,11 @@ export class ExecuteResultMessage extends Packet {
 @ThreadLoad()
 export class ExecuteHandler implements IMessageHandler {
   public handle(message: Message): void {
-    if (Threading.type === ThreadingEnvType.WORKER) {
-      // In a worker we should have only the execute request
-      if (message.packet instanceof ExecuteMessage) {
-        // We need to execute the function
-        this._execute(message.packet);
-      }
-    } else {
-      // In main we should have only the result
-      if (message.packet instanceof ExecuteResultMessage) {
-        message.deferred.resolve(Serializer.deserialize(message.packet.result));
-      }
+    if (message.packet instanceof ExecuteMessage) {
+      // We need to execute the function
+      this._execute(message.packet);
+    } else if (message.packet instanceof ExecuteResultMessage) {
+      message.deferred.resolve(Serializer.deserialize(message.packet.result));
     }
   }
 
