@@ -152,6 +152,7 @@ export class ThreadingMain implements IThreading {
       }
 
       this._log(`Scheduled work on worker W-${worker.threadId}. ${GetPacketDescription(deferred.packet)}`);
+      worker.free = false;
       this._deferredInWork.get(worker.threadId).push(deferred);
       worker.comChannel.send(deferred.packet);
     }
