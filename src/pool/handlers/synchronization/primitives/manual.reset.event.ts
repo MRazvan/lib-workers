@@ -2,7 +2,7 @@ import { isNumber } from 'lodash';
 import { Serialize } from '../../../attributes/serializer';
 import { getLog, Logger } from '../../../logging';
 import { PrimitiveType } from '../primitive.types';
-import { Synchronization } from '../sync';
+import { INVALID_PRIMITIVE_INDEX, Synchronization } from '../sync';
 
 export enum EventState {
   LOCKED = 1,
@@ -28,7 +28,7 @@ export class ManualResetEvent {
   }
 
   public set(): void {
-    ManualResetEvent._log(`Notify.`, this.key);
+    ManualResetEvent._log(`Set.`, this.key);
     // Release the lock
     Atomics.store(Synchronization.getBuffer(), this._index, EventState.UNLOCKED);
     // Wakeup waiting agents
@@ -40,7 +40,7 @@ export class ManualResetEvent {
     Atomics.store(Synchronization.getBuffer(), this._index, EventState.LOCKED);
   }
 
-  public static create(eventKey: number, state: EventState = EventState.LOCKED): ManualResetEvent {
+  public static createOrGet(eventKey: number, state: EventState = EventState.LOCKED): ManualResetEvent {
     if (!isNumber(eventKey) || isNaN(eventKey) || !isFinite(eventKey)) {
       throw new Error(`The ManualResetEvent key must be a number. Got ${eventKey}`);
     }
@@ -48,6 +48,9 @@ export class ManualResetEvent {
       state,
       EventState.LOCKED
     ]);
+    if (eventBufferIndex === INVALID_PRIMITIVE_INDEX) {
+      throw new Error('Cannot allocated space for ManualResetEvent');
+    }
     return new ManualResetEvent(eventKey, eventBufferIndex);
   }
 }

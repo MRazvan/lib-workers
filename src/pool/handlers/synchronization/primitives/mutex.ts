@@ -3,7 +3,7 @@ import { Serialize } from '../../../attributes/serializer';
 import { Threading } from '../../../implementation/threading/threading';
 import { getLog, Logger } from '../../../logging';
 import { PrimitiveType } from '../primitive.types';
-import { Synchronization } from '../sync';
+import { INVALID_PRIMITIVE_INDEX, Synchronization } from '../sync';
 
 export enum MutexState {
   LOCKED = 1,
@@ -96,7 +96,7 @@ export class Mutex {
     Atomics.notify(buffer, this._index + MUTEX_STATE_OFFSET, Number.MAX_SAFE_INTEGER);
   }
 
-  public static create(mutexKey: number, state: MutexState = MutexState.UNLOCKED): Mutex {
+  public static createOrGet(mutexKey: number, state: MutexState = MutexState.UNLOCKED): Mutex {
     if (!isNumber(mutexKey) || isNaN(mutexKey) || !isFinite(mutexKey)) {
       throw new Error(`The Mutex key must be a number. Got ${mutexKey}`);
     }
@@ -108,7 +108,9 @@ export class Mutex {
     mutexInitialState[OWNING_THREAD_OFFSET] = state === MutexState.LOCKED ? Threading.threadId : NO_OWNING_THREAD;
 
     const mutexBufferIndex = Synchronization.getIndexForPrimitive(mutexKey, PrimitiveType.MUTEX, mutexInitialState);
-
+    if (mutexBufferIndex === INVALID_PRIMITIVE_INDEX) {
+      throw new Error('Cannot allocated space for Mutex');
+    }
     return new Mutex(mutexKey, mutexBufferIndex);
   }
 }

@@ -1,9 +1,10 @@
 export { GetSerializers as GetWorkerMessages, ISerializer, Serialize } from './attributes/serializer';
 export * from './attributes/thread.load';
 export * from './handlers/handler';
-export * from './handlers/synchronization/primitives/barrier';
 export * from './handlers/synchronization/primitives/manual.reset.event';
 export * from './handlers/synchronization/primitives/mutex';
+export * from './handlers/synchronization/primitives/semaphore';
+export * from './handlers/synchronization/sync';
 export * from './implementation/messages/error';
 export * from './implementation/messages/exit';
 export * from './implementation/messages/online';

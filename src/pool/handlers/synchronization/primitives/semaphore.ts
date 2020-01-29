@@ -2,7 +2,7 @@ import { isNumber } from 'lodash';
 import { Serialize } from '../../../attributes/serializer';
 import { getLog, Logger } from '../../../logging';
 import { PrimitiveType } from '../primitive.types';
-import { Synchronization } from '../sync';
+import { INVALID_PRIMITIVE_INDEX, Synchronization } from '../sync';
 
 export enum SemaphoreState {
   LOCKED = 1,
@@ -58,14 +58,14 @@ export class BinarySemaphore {
   }
 
   public give(): void {
-    BinarySemaphore._log('Give', this.key);
     // Release the lock
     Atomics.store(Synchronization.getBuffer(), this._index, SemaphoreState.UNLOCKED);
     // Wakeup waiting agents
     Atomics.notify(Synchronization.getBuffer(), this._index, Number.MAX_SAFE_INTEGER);
+    BinarySemaphore._log('Give', this.key);    
   }
 
-  public static create(semaphoreKey: number, state: SemaphoreState = SemaphoreState.UNLOCKED): BinarySemaphore {
+  public static createOrGet(semaphoreKey: number, state: SemaphoreState = SemaphoreState.UNLOCKED): BinarySemaphore {
     if (!isNumber(semaphoreKey) || isNaN(semaphoreKey) || !isFinite(semaphoreKey)) {
       throw new Error(`The BinarySemaphore key must be a number. Got ${semaphoreKey}`);
     }
@@ -73,6 +73,9 @@ export class BinarySemaphore {
       state,
       SemaphoreState.UNLOCKED
     ]);
+    if (semaphoreBufferIndex === INVALID_PRIMITIVE_INDEX) {
+      throw new Error('Cannot allocated space for BinarySemaphore');
+    }
     return new BinarySemaphore(semaphoreKey, semaphoreBufferIndex);
   }
 }
