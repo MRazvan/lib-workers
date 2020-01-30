@@ -18,7 +18,7 @@ export function Proxify<T>(target: Function): new () => T {
   // If we are not in a worker environment or the workers are not enabled
   //    return the actual target back
   if (Threading.type === ThreadingEnvType.WORKER || !Threading.initialized || Threading.workers.length === 0) {
-    return target as new () => T;
+    throw new Error('Cannot Proxify target. Either we are in a Worker or the Pool has not started correctly.');
   }
 
   // This will get the reflection information on that target
