@@ -1,7 +1,7 @@
 import { ClassData, ClassDecoratorFactory, ReflectHelper } from 'lib-reflect';
 import { isNil } from 'lodash';
 
-class Messages {}
+class SerializedMetaStorage {}
 
 export interface ISerializer {
   serialize(data: any): any;
@@ -9,7 +9,18 @@ export interface ISerializer {
 }
 
 export const SerializationHandlerKey = 'SerializationHandlerKey';
-const MessageClassBagKey = 'MessageClassBagKey';
+
+const SerializationBagKey = 'SerializationBagKey';
+
+function addSerializerToBag(cd: ClassData): void {
+  const ctxCd = ReflectHelper.getOrCreateClassData(SerializedMetaStorage);
+  if (isNil(ctxCd.tags[SerializationBagKey])) {
+    ctxCd.tags[SerializationBagKey] = [];
+  }
+  if (!ctxCd.tags[SerializationBagKey].includes(cd)) {
+    ctxCd.tags[SerializationBagKey].push(cd);
+  }
+}
 
 export const Serialize = (serializer?: ISerializer): ClassDecorator =>
   ClassDecoratorFactory((cd: ClassData) => {
@@ -17,18 +28,10 @@ export const Serialize = (serializer?: ISerializer): ClassDecorator =>
     if (!isNil(serializer)) {
       cd.tags[SerializationHandlerKey] = serializer;
     }
-    const ctxCd = ReflectHelper.getOrCreateClassData(Messages);
-    let classes: any[] = ctxCd.tags[MessageClassBagKey];
-    if (!classes) {
-      classes = [];
-      ctxCd.tags[MessageClassBagKey] = classes;
-    }
-    if (!classes.includes(cd)) {
-      classes.push(cd);
-    }
+    addSerializerToBag(cd);
   });
 
-export function GetWorkerMessages(): ClassData[] {
-  const ctxCd = ReflectHelper.getOrCreateClassData(Messages);
-  return ctxCd.tags[MessageClassBagKey] || [];
+export function GetSerializers(): ClassData[] {
+  const ctxCd = ReflectHelper.getOrCreateClassData(SerializedMetaStorage);
+  return ctxCd.tags[SerializationBagKey] || [];
 }

@@ -1,12 +1,13 @@
 import { Dynamic, DynamicClass, DynamicMethod, MethodData, ReflectHelper } from 'lib-reflect';
 import { isNil } from 'lodash';
-import { WorkerScheduledFileNameTagKey } from './attributes/worker.context';
-import { ExecuteMsg } from './messages/execute';
-import * as WP from './worker.pool';
-import * as util from 'util';
+import { ThreadLoadBagKey } from './attributes/thread.load';
+import { ExecuteMessage } from './handlers/execute';
+import { THREAD_ANY } from './implementation/threading/constants';
+import { Threading, ThreadingEnvType } from './implementation/threading/threading';
+import { getLog, Logger } from './logging';
 
 const ProxyCacheKey = 'ProxyCacheKey';
-const log = util.debuglog('Proxify');
+const _log: Logger = getLog('[Proxify]');
 
 export function Proxify<T>(target: Function): new () => T {
   // Some sanity checks
@@ -16,8 +17,8 @@ export function Proxify<T>(target: Function): new () => T {
 
   // If we are not in a worker environment or the workers are not enabled
   //    return the actual target back
-  if (WP.WorkerPool.isWorker() || !WP.WorkerPool.isEnabled() || WP.WorkerPool.workersCount() === 0) {
-    return target as new () => T;
+  if (Threading.type === ThreadingEnvType.WORKER || !Threading.initialized || Threading.workers.length === 0) {
+    throw new Error('Cannot Proxify target. Either we are in a Worker or the Pool has not started correctly.');
   }
 
   // This will get the reflection information on that target
@@ -29,12 +30,12 @@ export function Proxify<T>(target: Function): new () => T {
   }
 
   // Check to see if the target is marked for processing on workers
-  if (isNil(cd.tags[WorkerScheduledFileNameTagKey])) {
+  if (isNil(cd.tags[ThreadLoadBagKey])) {
     // Do we throw an error, or just leave it be and return a regular instance?
     //  If we return a regular instance, the user might get fooled into thinking they are running on a worker
     //  when actually the main thread will be the one running and getting blocked
     // So for not just thrown an error
-    throw new Error(`Requested target for Worker proxy generation is not decorated with @WorkerContext. '${cd.name}'`);
+    throw new Error(`Requested target for Worker proxy generation is not decorated with @ThreadLoad. '${cd.name}'`);
   }
 
   // Did we generate a proxy before? If yes return that
@@ -59,10 +60,15 @@ export function Proxify<T>(target: Function): new () => T {
         // Set the body of the proxied method
         dm.addBody(function(...args: any[]): Promise<any> {
           // Finally send the work to the worker threads and return the result, or just throw if anything happens
-          return WP.WorkerPool.sendToWorker(new ExecuteMsg(cd.name, md.name, args));
+          return Threading.send(new ExecuteMessage(cd.name, md.name, args), THREAD_ANY);
         });
       });
     });
+  });
+
+  // Add the custom metadata that somebody might have added to the original class
+  Reflect.getMetadataKeys(target).forEach((metaKey: string) => {
+    Reflect.defineMetadata(metaKey, Reflect.getMetadata(metaKey, target), dynamicClass.target);
   });
 
   // Try to make instanceof work on proxyfied targets
@@ -76,7 +82,7 @@ export function Proxify<T>(target: Function): new () => T {
     });
   } catch (err) {
     // We can't do runtime type checking with instanceof
-    log(`Cannot override instanceof for ${cd.name}, proxy checking will not work.`);
+    _log(`Cannot override instanceof for ${cd.name}, proxy checking will not work.`, err);
   }
 
   // Cache the proxy, next time just return the generated one

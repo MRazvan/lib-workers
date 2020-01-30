@@ -1,6 +1,6 @@
 {
   "name": "lib-workers",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Library for helping with nodejs worker-threads utilization.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,7 +17,8 @@
   "homepage": "https://github.com/MRazvan/lib-workers#readme",
   "scripts": {
     "tsc:w": "tsc -w",
-    "build": "tsc"
+    "build": "tsc",
+    "lint:fix": "node ./node_modules/eslint/bin/eslint.js --fix ./src/**/*.ts ./*.ts"
   },
   "author": "Marinovici Razvan",
   "license": "MIT",
@@ -42,6 +43,7 @@
     "lodash": "^4.17.15"
   },
   "files": [
-    "dist/**/{*.js,*.d.ts}"
+    "dist/src/**/{*.js,*.d.ts}",
+    "dist/index.{*.js,*.d.ts}"
   ]
 }
