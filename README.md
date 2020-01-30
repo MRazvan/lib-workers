@@ -55,8 +55,8 @@ Represents the pool of workers that were created, and allows communication with 
 
 -------
 Advanced methods
-1.  ***registerHandler**(handler: IMessageHandler):void* - Register a message handler in the worker threads and in main. Usefull for custom packets and custom functionality. ( Ex. Execute handler in [execute.ts](src/pool/implementation/handlers/execute.ts))
-2.  ***registerInitializer**(handler: IInitializer):void* - Register an initialization handler in the worker threads and in main. Usefull for populating the 'context' information in main and getting that information in the worker threads. (Ex. Synchronization handler in [sync.ts](src/pool/implementation/handlers/synchronization/sync.ts))
+1.  ***registerHandler**(handler: IMessageHandler):void* - Register a message handler in the worker threads and in main. Usefull for custom packets and custom functionality. ( Ex. Execute handler in [execute.ts](src/pool/handlers/execute.ts))
+2.  ***registerInitializer**(handler: IInitializer):void* - Register an initialization handler in the worker threads and in main. Usefull for populating the 'context' information in main and getting that information in the worker threads. (Ex. Synchronization handler in [sync.ts](src/pool/handlers/synchronization/sync.ts))
   
 
 #### Properties
