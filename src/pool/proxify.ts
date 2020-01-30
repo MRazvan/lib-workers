@@ -35,7 +35,7 @@ export function Proxify<T>(target: Function): new () => T {
     //  If we return a regular instance, the user might get fooled into thinking they are running on a worker
     //  when actually the main thread will be the one running and getting blocked
     // So for not just thrown an error
-    throw new Error(`Requested target for Worker proxy generation is not decorated with @WorkerContext. '${cd.name}'`);
+    throw new Error(`Requested target for Worker proxy generation is not decorated with @ThreadLoad. '${cd.name}'`);
   }
 
   // Did we generate a proxy before? If yes return that
@@ -64,6 +64,11 @@ export function Proxify<T>(target: Function): new () => T {
         });
       });
     });
+  });
+
+  // Add the custom metadata that somebody might have added to the original class
+  Reflect.getMetadataKeys(target).forEach((metaKey: string) => {
+    Reflect.defineMetadata(metaKey, Reflect.getMetadata(metaKey, target), dynamicClass.target);
   });
 
   // Try to make instanceof work on proxyfied targets
