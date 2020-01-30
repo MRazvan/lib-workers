@@ -50,7 +50,6 @@ async function bootstrap(): Promise<void> {
   console.log(''.padEnd(20, '*'));
   console.log('Mutex');
   console.log(''.padEnd(20, '*'));
-  console.log(WP.Synchronization.getBuffer());
   // ///////////////////////////////
   // Mutex, by default unlocked let the threads fight for it
   // ///////////////////////////////
