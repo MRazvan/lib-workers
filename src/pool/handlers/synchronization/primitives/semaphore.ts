@@ -62,7 +62,7 @@ export class BinarySemaphore {
     Atomics.store(Synchronization.getBuffer(), this._index, SemaphoreState.UNLOCKED);
     // Wakeup waiting agents
     Atomics.notify(Synchronization.getBuffer(), this._index, Number.MAX_SAFE_INTEGER);
-    BinarySemaphore._log('Give', this.key);    
+    BinarySemaphore._log('Give', this.key);
   }
 
   public static createOrGet(semaphoreKey: number, state: SemaphoreState = SemaphoreState.UNLOCKED): BinarySemaphore {
@@ -74,7 +74,7 @@ export class BinarySemaphore {
       SemaphoreState.UNLOCKED
     ]);
     if (semaphoreBufferIndex === INVALID_PRIMITIVE_INDEX) {
-      throw new Error('Cannot allocated space for BinarySemaphore');
+      throw new Error('Cannot allocate space for BinarySemaphore');
     }
     return new BinarySemaphore(semaphoreKey, semaphoreBufferIndex);
   }

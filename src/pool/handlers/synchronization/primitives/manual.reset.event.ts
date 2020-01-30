@@ -49,7 +49,7 @@ export class ManualResetEvent {
       EventState.LOCKED
     ]);
     if (eventBufferIndex === INVALID_PRIMITIVE_INDEX) {
-      throw new Error('Cannot allocated space for ManualResetEvent');
+      throw new Error('Cannot allocate space for ManualResetEvent');
     }
     return new ManualResetEvent(eventKey, eventBufferIndex);
   }

@@ -109,7 +109,7 @@ export class Mutex {
 
     const mutexBufferIndex = Synchronization.getIndexForPrimitive(mutexKey, PrimitiveType.MUTEX, mutexInitialState);
     if (mutexBufferIndex === INVALID_PRIMITIVE_INDEX) {
-      throw new Error('Cannot allocated space for Mutex');
+      throw new Error('Cannot allocate space for Mutex');
     }
     return new Mutex(mutexKey, mutexBufferIndex);
   }
