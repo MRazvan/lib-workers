@@ -21,7 +21,7 @@ Library to help with nodejs worker-threads.
   - [Limitations](#limitations)
 
 ## Overview
-This library and it's functionality takes care of creating a pool of workers, communication with those workers and running some work in them.
+This library and it's functionality takes care of creating a pool of workers, communication with those workers and running some work in them. Create a proxy for a class that needs to run in a worker, and use that proxy like the actual class.
 - Simple to use
 - Integrates easily with DI systems
 - Synchronization primitives
