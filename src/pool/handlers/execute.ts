@@ -67,14 +67,14 @@ export class ExecuteHandler implements IMessageHandler {
       if (result instanceof Promise) {
         result
           .then(val => {
-            Threading.send(new ExecuteResultMessage(val, packet.id));
+            Threading.send(new ExecuteResultMessage(Serializer.serialize(val), packet.id));
           })
           .catch(err => {
             Threading.send(getErrorMessage(err, packet.id));
           });
       } else {
         // Not a promise
-        Threading.send(new ExecuteResultMessage(result, packet.id));
+        Threading.send(new ExecuteResultMessage(Serializer.serialize(result), packet.id));
       }
     } catch (err) {
       Threading.send(getErrorMessage(err, packet.id));
