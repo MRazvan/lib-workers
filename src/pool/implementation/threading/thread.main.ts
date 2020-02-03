@@ -104,23 +104,27 @@ export class ThreadingMain implements IThreading {
       worker.ready = true;
     } else if (msg instanceof ExitMessage) {
       this._log(`Got ExitMessage from worker W-${worker.threadId}. Removing from available workers.`);
-      this._removeWorker(worker);
       // Remove this worker from the list of available workers
+      this._removeWorker(worker);
     }
-
-    const _work = this._deferredInWork.get(worker.threadId);
-    // Find the deferred responsible
-    const def = find(_work, (d: Deferred) => d.packet.id === msg.id);
-    if (!isNil(def)) {
-      remove(_work, def);
+    // We still need to let the handlers execute, we can't just return after removing the worker
+    //    the handlers might have internal data related to the worker that they need to cleanup
+    let deferred: Deferred = null;
+    if (this._deferredInWork.has(worker.threadId)) {
+      const _work = this._deferredInWork.get(worker.threadId);
+      // Find the deferred responsible
+      deferred = find(_work, (d: Deferred) => d.packet.id === msg.id);
+      if (!isNil(deferred)) {
+        remove(_work, deferred);
+      }
+      worker.free = _work.length === 0;
+      this._log(
+        `Handle message from worker W-${worker.threadId}. Packet ${GetPacketDescription(msg)}. Deferred ${
+          deferred ? 'Source - ' + GetPacketDescription(deferred.packet) : 'none'
+        }`
+      );
     }
-    worker.free = _work.length === 0;
-    this._log(
-      `Handle message from worker W-${worker.threadId}. Packet ${GetPacketDescription(msg)}. Deferred ${
-        def ? 'Source - ' + GetPacketDescription(def.packet) : 'none'
-      }`
-    );
-    const handleMessage = new Message(worker.threadId, def, msg);
+    const handleMessage = new Message(worker.threadId, deferred, msg);
     this._runMessageHandlers(handleMessage);
     // Schedule more work if needed
     this._scheduleWork();
